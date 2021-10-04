@@ -16,7 +16,9 @@ import random
 import pickle
 from tqdm import tqdm
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from collections import Counter
+import matplotlib.pyplot as plt
 
 
 class RawCelebA(Dataset):
@@ -43,7 +45,7 @@ class ClusteredCelebA:
     encoder = tv.models.resnet50(pretrained=True)
 
     num_class = 2
-    num_cluster = 4
+    num_cluster = 5
 
     @classmethod
     def t(cls):
@@ -51,7 +53,7 @@ class ClusteredCelebA:
         For test
         :return:
         """
-        a = cls._get_cluster_index_list(0)
+        a = cls._get_ni_info(0)
         print(a)
 
     @classmethod
@@ -74,7 +76,7 @@ class ClusteredCelebA:
 
         def _forward(model, dataset):
             with torch.no_grad():
-                device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
+                device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
                 model = model.to(device)
                 loader = DataLoader(dataset, batch_size=128, num_workers=10)
                 for data, _ in loader:
@@ -94,6 +96,30 @@ class ClusteredCelebA:
         return coding
 
     @classmethod
+    def plot_pca_coding(cls):
+        coding_list = []
+        label_list = []
+        for i in range(cls.num_class):
+            coding = cls._get_coding(i)
+            label = torch.zeros(len(coding)) + i
+            coding_list.append(coding)
+            label_list.append(label)
+        coding = torch.cat(coding_list, dim=0)
+        label = torch.cat(label_list, dim=0)
+
+        coding = PCA(n_components=2, random_state=2).fit_transform(coding)
+
+        index_list = range(len(coding))
+        random.seed(2)
+        index_list = random.sample(index_list, 1000)
+        coding = coding[index_list]
+        label = label[index_list]
+
+        label = label.numpy().tolist()
+        plt.scatter(coding[:, 0], coding[:, 1], c=label, cmap='rainbow')
+        plt.show()
+
+    @classmethod
     def coding2pkl(cls):
         coding_list = []
         for data_class in range(cls.num_class):
@@ -102,12 +128,12 @@ class ClusteredCelebA:
         pickle.dump(coding_list, open('./count/coding_list.pkl', 'wb'))
 
     @classmethod
-    def kmeans2pkl(cls):
+    def kmeans2pkl(cls, random_state=4):
         coding_list = pickle.load(open('./count/coding_list.pkl', 'rb'))
         cluster_list = []
         for data_class in tqdm(range(cls.num_class)):
             coding = coding_list[data_class]
-            cluster = KMeans(n_clusters=cls.num_cluster, random_state=2).fit(coding)
+            cluster = KMeans(n_clusters=cls.num_cluster, random_state=random_state).fit(coding)
             cluster_list.append(cluster)
         pickle.dump(cluster_list, open('./count/kmeans_list.pkl', 'wb'))
 
@@ -151,7 +177,18 @@ class ClusteredCelebA:
 
         cluster_index_list = cls._get_cluster_index_list(data_class)
 
-        coding_basic_cluster = coding[cluster_index_list[0]]
+        # 获取聚类的数据 (4, num_sample, dim)
+        coding_cluster_list = []
+        for i in range(cls.num_cluster):
+            coding_cluster = coding[cluster_index_list[0]]
+            coding_cluster_list.append(coding_cluster.numpy())
+        coding_cluster_list = np.array(coding_cluster_list)
+
+        # 取模长最大的为基类
+        cluster_centers = np.mean(coding_cluster_list, axis=1)
+        basic_class_id = np.argmax(np.linalg.norm(cluster_centers, axis=1))
+        # basic_class_id = 1
+        coding_basic_cluster = coding[cluster_index_list[basic_class_id]]
 
         ni_list = []
         for compared_cluster_index in cluster_index_list:
@@ -271,10 +308,14 @@ class AttributeAbout:
                 gender = -1 if label == 0 else 1
 
                 img_list = cls._get_attrs_list((gender_id,), (gender,))
-                img_list = random.sample(img_list, 20000)
+                img_list = random.sample(img_list, 25000)
 
                 img_list = [f'{_} {label}\n' for _ in img_list]
                 f.writelines(img_list)
 
 
+# ClusteredCelebA.coding2pkl()
+# ClusteredCelebA.kmeans2pkl()
+# ClusteredCelebA.print_kmeans_info()
+# ClusteredCelebA.print_ni_info()
 ClusteredCelebA.celeba2txt()
