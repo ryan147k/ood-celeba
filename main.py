@@ -409,7 +409,7 @@ class Experiment:
 if __name__ == '__main__':
     _train = True
     if args.debug is True:
-        args.ex_num = '2'
+        args.ex_num = '1'
         args.dataset_id = 0
         os.environ['CUDA_VISIBLE_DEVICES'] = '7'
         _train = False

@@ -76,7 +76,7 @@ class ClusteredCelebA:
 
         def _forward(model, dataset):
             with torch.no_grad():
-                device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+                device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
                 model = model.to(device)
                 loader = DataLoader(dataset, batch_size=128, num_workers=10)
                 for data, _ in loader:
@@ -280,7 +280,12 @@ class AttributeAbout:
         return list(res)
 
     @classmethod
-    def print_hair_info_with_gender(cls):
+    def print_hair_info_with_attr(cls, basic_attr_id=21):
+        """
+        输出某种属性下不同头发颜色的数量
+        :param basic_attr_id:
+        :return:
+        """
         with open(cls.root, 'r') as f:
             f.readline()
             attr_list = f.readline().split()
@@ -288,34 +293,35 @@ class AttributeAbout:
         male = {}
         for attr_id in [9, 10, 12, 18]:
             attr_name = attr_list[attr_id - 1]
-            res = cls._get_attrs_list(attr_id_list=(21, attr_id), attr_mode_list=(1, 1))
+            res = cls._get_attrs_list(attr_id_list=(basic_attr_id, attr_id), attr_mode_list=(1, 1))
             male[attr_name] = len(res)
         female = {}
         for attr_id in [9, 10, 12, 18]:
             attr_name = attr_list[attr_id - 1]
-            res = cls._get_attrs_list(attr_id_list=[21, attr_id], attr_mode_list=[-1, 1])
+            res = cls._get_attrs_list(attr_id_list=[basic_attr_id, attr_id], attr_mode_list=[-1, 1])
             female[attr_name] = len(res)
         print(male)
         print(female)
 
     @classmethod
-    def celeba2txt(cls):
+    def celeba2txt(cls, attr_id=21):
         random.seed(2)
         # 聚类
         with open('./count/img4cluster.txt', 'w') as f:
             for label in [0, 1]:
-                gender_id = 21
-                gender = -1 if label == 0 else 1
+                mode = -1 if label == 0 else 1
 
-                img_list = cls._get_attrs_list((gender_id,), (gender,))
+                img_list = cls._get_attrs_list((attr_id,), (mode,))
                 img_list = random.sample(img_list, 25000)
 
                 img_list = [f'{_} {label}\n' for _ in img_list]
                 f.writelines(img_list)
 
 
-# ClusteredCelebA.coding2pkl()
-# ClusteredCelebA.kmeans2pkl()
-# ClusteredCelebA.print_kmeans_info()
-# ClusteredCelebA.print_ni_info()
+# ClusteredCelebA.plot_pca_coding()
+ClusteredCelebA.coding2pkl()
+ClusteredCelebA.kmeans2pkl()
+ClusteredCelebA.print_kmeans_info()
+ClusteredCelebA.print_ni_info()
 ClusteredCelebA.celeba2txt()
+# AttributeAbout.celeba2txt(attr_id=3)
