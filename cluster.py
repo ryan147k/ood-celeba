@@ -16,6 +16,7 @@ import random
 import pickle
 from tqdm import tqdm
 from sklearn.cluster import KMeans
+from collections import Counter
 
 
 class RawCelebA(Dataset):
@@ -39,50 +40,58 @@ class RawCelebA(Dataset):
 
 class ClusteredCelebA:
     file_list = [_.split() for _ in open('./count/img4cluster.txt').readlines()]
-
-    celeba = RawCelebA(file_list)
-    loader = DataLoader(celeba, batch_size=len(celeba), num_workers=20)
     encoder = tv.models.resnet50(pretrained=True)
 
     num_class = 2
+    num_cluster = 4
 
     @classmethod
     def t(cls):
-        print('a')
-        a = cls._get_coding(0)
-        pass
-
-    @classmethod
-    def _get_data_index_list(cls, data_class):
         """
-        获取某个数字的index列表
-        :param data_class:  取哪个类别数据的index
-        :param num_class: 类别数量
+        For test
         :return:
         """
-        _, label = next(cls.loader.__iter__())
-        label = label.squeeze()
-        index_lists = [[] for _ in range(cls.num_class)]
-        for idx, label in enumerate(label.tolist()):
-            index_lists[label].append(idx)
-        return index_lists[data_class]
+        a = cls._get_cluster_index_list(0)
+        print(a)
+
+    @classmethod
+    def _get_img_list(cls, data_class):
+        """
+        根据类别获取img列表
+        :param data_class:
+        :return:
+        """
+        img_list = []
+        for img, label in cls.file_list:
+            if int(label) == data_class:
+                img_list.append((img, label))
+        return img_list
 
     @classmethod
     def _get_coding(cls, data_class):
         def _hook(module, input, output):
-            coding.append(input[0].cpu().detach())
+            hook_res.append(input[0].cpu().detach())
 
-        index_list = cls._get_data_index_list(data_class)
+        def _forward(model, dataset):
+            with torch.no_grad():
+                device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
+                model = model.to(device)
+                loader = DataLoader(dataset, batch_size=128, num_workers=10)
+                for data, _ in loader:
+                    data = data.to(device)
+                    model(data)  # TODO: batch_size太大, 直接放内存放不下
 
-        data, label = next(cls.loader.__iter__())
-        label = label.squeeze()
-        data, label = data[index_list], label[index_list]  # 取出某个数字的数据
+        img_list = cls._get_img_list(data_class)
 
-        coding = []  # 用于接收钩子函数的输出
+        hook_res = []  # 用于接收钩子函数的输出
         cls.encoder.fc.register_forward_hook(_hook)
-        cls.encoder(data)  # TODO: batch_size太大, 直接放内存放不下
 
-        return coding[0]
+        celeba = RawCelebA(img_list)
+        _forward(cls.encoder, celeba)
+
+        coding = torch.cat(hook_res, dim=0)
+
+        return coding
 
     @classmethod
     def coding2pkl(cls):
@@ -98,21 +107,29 @@ class ClusteredCelebA:
         cluster_list = []
         for data_class in tqdm(range(cls.num_class)):
             coding = coding_list[data_class]
-            cluster = KMeans(n_clusters=5, random_state=2).fit(coding)
+            cluster = KMeans(n_clusters=cls.num_cluster, random_state=2).fit(coding)
             cluster_list.append(cluster)
-        pickle.dump(cluster_list, open('./count/cluster_list.pkl', 'wb'))
+        pickle.dump(cluster_list, open('./count/kmeans_list.pkl', 'wb'))
+
+    @classmethod
+    def print_kmeans_info(cls):
+        kmeans_list = pickle.load(open('./count/kmeans_list.pkl', 'rb'))
+        for i in range(cls.num_class):
+            kmeans = kmeans_list[i]
+            count = Counter(kmeans.labels_)
+            print(count)
 
     @classmethod
     def _get_cluster_index_list(cls, data_class):
         """
         获取某个类别聚类后的index列表
-        :param _class:
+        :param data_class:
         :return:
         """
-        cluster_list = pickle.load(open('./count/cluster_list.pkl', 'rb'))
+        cluster_list = pickle.load(open('./count/kmeans_list.pkl', 'rb'))
         cluster = cluster_list[data_class]
 
-        index_list = [[] for _ in range(5)]
+        index_list = [[] for _ in range(cls.num_cluster)]
         for i, v in enumerate(cluster.labels_):
             index_list[v].append(i)
         return index_list
@@ -137,8 +154,8 @@ class ClusteredCelebA:
         coding_basic_cluster = coding[cluster_index_list[0]]
 
         ni_list = []
-        for cluster_index in cluster_index_list:
-            coding_compared_cluster = coding[cluster_index]
+        for compared_cluster_index in cluster_index_list:
+            coding_compared_cluster = coding[compared_cluster_index]
             ni = _ni_index(coding_basic_cluster, coding_compared_cluster)
             ni_list.append(ni)
 
@@ -149,7 +166,7 @@ class ClusteredCelebA:
     @classmethod
     def print_ni_info(cls):
         ni_info_list = []
-        for data_class in range(10):
+        for data_class in range(cls.num_class):
             ni_info = cls._get_ni_info(data_class)
             print(ni_info)
             ni_info_list.append(ni_info)
@@ -158,8 +175,37 @@ class ClusteredCelebA:
         ni = np.array(ni)
         print(np.mean(ni, axis=0).tolist())  # [ 0.0, 9.22905, 11.084345, 12.117267, 14.091411]
 
+    @classmethod
+    def celeba2txt(cls):
+        root = './dataset/celeba_clustered'
+        for cluster_id in tqdm(range(cls.num_cluster)):
+            data_path = f'{root}/{str(cluster_id)}.txt'
 
-class CelebA:
+            with open(data_path, 'w') as f:
+                count = 0
+
+                for data_class in range(cls.num_class):
+                    # 获取某个数字类别所有的在盖类别内的聚类index
+                    cluster_index_list = cls._get_cluster_index_list(data_class)
+                    # 得到聚类的NI值的排名
+                    _, rank = cls._get_ni_info(data_class)
+                    cluster_index = cluster_index_list[rank[cluster_id]]
+                    count += len(cluster_index)
+
+                    img_list = cls._get_img_list(data_class)
+
+                    # 该聚类对应的img list
+                    img_cluster = []
+                    for idx in cluster_index:
+                        img_cluster.append(img_list[idx])
+
+                    img_cluster = [f'{img} {label}\n' for img, label in img_cluster]
+                    f.writelines(img_cluster)
+
+                print(count)
+
+
+class AttributeAbout:
     root = '../dataset/CelebA/Anno/list_attr_celeba.txt'
 
     @classmethod
@@ -231,4 +277,4 @@ class CelebA:
                 f.writelines(img_list)
 
 
-ClusteredCelebA.coding2pkl()
+ClusteredCelebA.celeba2txt()
