@@ -61,6 +61,24 @@ class ClusteredCelebA(RawCelebA):
         super(ClusteredCelebA, self).__init__(file_list)
 
 
+class CorrelationCelebA(RawCelebA):
+    def __init__(self, _class, root='./dataset/celeba_correlation'):
+        assert 0 <= _class < 5
+        file_list = open(os.path.join(root, f'{str(_class)}.txt')).readlines()
+        file_list = [_.split() for _ in file_list]
+
+        super(CorrelationCelebA, self).__init__(file_list)
+
+
+class DiversityCelebA(RawCelebA):
+    def __init__(self, _class, root='./dataset/celeba_diversity'):
+        assert 0 <= _class < 4
+        file_list = open(os.path.join(root, f'{str(_class)}.txt')).readlines()
+        file_list = [_.split() for _ in file_list]
+
+        super(DiversityCelebA, self).__init__(file_list)
+
+
 def train(model,
           save_path: str,
           ex_name: str,
@@ -69,8 +87,8 @@ def train(model,
           test_datasets=None):
     # data
 
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, num_workers=5)
-    val_loader = DataLoader(val_dataset, shuffle=False, batch_size=args.batch_size, num_workers=5)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, num_workers=8)
+    val_loader = DataLoader(val_dataset, shuffle=False, batch_size=args.batch_size, num_workers=8)
     if test_datasets is None:
         test_loaders = []
     else:
@@ -88,7 +106,7 @@ def train(model,
     optimizer = torch.optim.Adam(params=model.parameters(),
                                  lr=args.lr,
                                  weight_decay=args.weight_decay)
-    lr_scheduler = lambda x: 1.0 if x < 30 else 0.8
+    lr_scheduler = lambda x: 1.0 if x < 15 else 0.8
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_scheduler)
 
     # train
@@ -217,7 +235,7 @@ class Experiment:
     """
     记录每一次的实验设置
     """
-    num_cluster = 5
+    num_cluster = 4
 
     @staticmethod
     def _mkdir(save_dir):
@@ -228,10 +246,6 @@ class Experiment:
         """
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-
-    @staticmethod
-    def _get_loader(dataset):
-        return DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
 
     @classmethod
     def _split_train_val(cls, dataset):
@@ -277,7 +291,7 @@ class Experiment:
         model = nn.parallel.DataParallel(model)
         model.to(device)
 
-        loader = cls._get_loader(dataset)
+        loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=10)
         loss, acc = val(model, loader)
         # print('loss {} acc {}'.format(loss, acc))
         return loss, acc
@@ -345,10 +359,10 @@ class Experiment:
             for i in range(1, cls.num_cluster):
                 if args.dataset_id == 0:
                     dataset = ClusteredCelebA(i)
-                # elif args.dataset_id == 1:
-                #     dataset = CorrelationMNIST(i)
-                # elif args.dataset_id == 2:
-                #     dataset = DiversityMNIST(i)
+                elif args.dataset_id == 1:
+                    dataset = CorrelationCelebA(i)
+                elif args.dataset_id == 2:
+                    dataset = DiversityCelebA(i)
 
                 _, acc = cls._basic_test(model, dataset)
                 acc_list.append(acc)
@@ -360,7 +374,7 @@ class Experiment:
     @classmethod
     def ex1(cls, _train=False):
         args.batch_size = 256
-        args.epoch_num = 50
+        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex1'
@@ -373,9 +387,9 @@ class Experiment:
         if args.dataset_id == 0:
             dataset = ClusteredCelebA(0)
         elif args.dataset_id == 1:
-            dataset = ClusteredCelebA(0)
+            dataset = CorrelationCelebA(0)
         elif args.dataset_id == 2:
-            dataset = ClusteredCelebA(0)
+            dataset = DiversityCelebA(0)
         model_name = f'd{str(args.dataset_id)}_{model_name}'
 
         train_dataset, val_dataset = cls._split_train_val(dataset)
@@ -384,7 +398,7 @@ class Experiment:
     @classmethod
     def ex2(cls, _train=False):
         args.batch_size = 512
-        args.epoch_num = 50
+        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex2'
@@ -397,9 +411,33 @@ class Experiment:
         if args.dataset_id == 0:
             dataset = ClusteredCelebA(0)
         elif args.dataset_id == 1:
-            dataset = ClusteredCelebA(0)
+            dataset = CorrelationCelebA(0)
         elif args.dataset_id == 2:
+            dataset = DiversityCelebA(0)
+        model_name = f'd{str(args.dataset_id)}_{model_name}'
+
+        train_dataset, val_dataset = cls._split_train_val(dataset)
+        cls._ex(ex_name, _train, model, model_name, save_dir, train_dataset, val_dataset)
+
+    @classmethod
+    def ex3(cls, _train=False):
+        args.batch_size = 128
+        args.epoch_num = 30
+        print(args)
+
+        ex_name = 'ex3'
+        save_dir = './ckpts/ex3/1005'
+        cls._mkdir(save_dir)
+
+        model = tv.models.vgg11(num_classes=2)
+        model_name = 'vgg11'
+
+        if args.dataset_id == 0:
             dataset = ClusteredCelebA(0)
+        elif args.dataset_id == 1:
+            dataset = CorrelationCelebA(0)
+        elif args.dataset_id == 2:
+            dataset = DiversityCelebA(0)
         model_name = f'd{str(args.dataset_id)}_{model_name}'
 
         train_dataset, val_dataset = cls._split_train_val(dataset)
@@ -409,9 +447,9 @@ class Experiment:
 if __name__ == '__main__':
     _train = True
     if args.debug is True:
-        args.ex_num = '1'
-        args.dataset_id = 0
-        os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+        args.ex_num = '3'
+        args.dataset_id = 2
+        os.environ['CUDA_VISIBLE_DEVICES'] = '1'
         _train = False
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')

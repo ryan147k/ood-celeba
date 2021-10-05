@@ -128,7 +128,7 @@ class ClusteredCelebA:
         pickle.dump(coding_list, open('./count/coding_list.pkl', 'wb'))
 
     @classmethod
-    def kmeans2pkl(cls, random_state=4):
+    def kmeans2pkl(cls, random_state=2):
         coding_list = pickle.load(open('./count/coding_list.pkl', 'rb'))
         cluster_list = []
         for data_class in tqdm(range(cls.num_class)):
@@ -161,7 +161,7 @@ class ClusteredCelebA:
         return index_list
 
     @classmethod
-    def _get_ni_info(cls, data_class):
+    def _get_ni_info(cls, data_class, basic_cluster_id):
         def _ni_index(cluster_0, cluster_1):
             cluster_0 = cluster_0.numpy()
             cluster_1 = cluster_1.numpy()
@@ -178,17 +178,18 @@ class ClusteredCelebA:
         cluster_index_list = cls._get_cluster_index_list(data_class)
 
         # 获取聚类的数据 (4, num_sample, dim)
-        coding_cluster_list = []
-        for i in range(cls.num_cluster):
-            coding_cluster = coding[cluster_index_list[0]]
-            coding_cluster_list.append(coding_cluster.numpy())
-        coding_cluster_list = np.array(coding_cluster_list)
+        # coding_cluster_list = []
+        # for i in range(cls.num_cluster):
+        #     coding_cluster = coding[cluster_index_list[0]]
+        #     coding_cluster_list.append(coding_cluster.numpy())
+        # coding_cluster_list = np.array(coding_cluster_list)
 
         # 取模长最大的为基类
-        cluster_centers = np.mean(coding_cluster_list, axis=1)
-        basic_class_id = np.argmax(np.linalg.norm(cluster_centers, axis=1))
-        # basic_class_id = 1
-        coding_basic_cluster = coding[cluster_index_list[basic_class_id]]
+        # cluster_centers = np.mean(coding_cluster_list, axis=1)
+        # basic_cluster_id = np.argmax(np.linalg.norm(cluster_centers, ord=2, axis=1))
+        # # basic_cluster_id = 1
+
+        coding_basic_cluster = coding[cluster_index_list[basic_cluster_id]]
 
         ni_list = []
         for compared_cluster_index in cluster_index_list:
@@ -197,20 +198,38 @@ class ClusteredCelebA:
             ni_list.append(ni)
 
         ni_rank = sorted(range(len(ni_list)), key=lambda k: ni_list[k])
-        ni_list = sorted(ni_list)
         return ni_list, ni_rank
 
     @classmethod
-    def print_ni_info(cls):
-        ni_info_list = []
-        for data_class in range(cls.num_class):
-            ni_info = cls._get_ni_info(data_class)
-            print(ni_info)
-            ni_info_list.append(ni_info)
+    def _get_basic_cluster_id(cls, data_class):
+        ni_list = []
+        for id in range(cls.num_cluster):
+            ni, _ = cls._get_ni_info(data_class, basic_cluster_id=id)
+            ni_list.append(ni)
+        # print(np.array(ni_list))
+        # print()
+        gap_list = []
+        for ni in ni_list:
+            ni = sorted(ni)
+            gap = 0
+            for i in range(1, len(ni)):
+                gap += (ni[i] - ni[i - 1])
+            gap_list.append(gap)
+        # print(gap_list)
 
-        ni, _ = zip(*ni_info_list)
-        ni = np.array(ni)
-        print(np.mean(ni, axis=0).tolist())  # [ 0.0, 9.22905, 11.084345, 12.117267, 14.091411]
+        return np.argmax(gap_list)
+
+    @classmethod
+    def print_ni_info(cls):
+        ni_list = []
+
+        for data_class in range(cls.num_class):
+            basic_cluster_id = cls._get_basic_cluster_id(data_class)
+            ni, rank = cls._get_ni_info(data_class, basic_cluster_id)
+            print(ni, rank)
+            ni_list.append(sorted(ni))
+
+        print(np.mean(np.array(ni_list), axis=0))
 
     @classmethod
     def celeba2txt(cls):
@@ -225,7 +244,8 @@ class ClusteredCelebA:
                     # 获取某个数字类别所有的在盖类别内的聚类index
                     cluster_index_list = cls._get_cluster_index_list(data_class)
                     # 得到聚类的NI值的排名
-                    _, rank = cls._get_ni_info(data_class)
+                    basic_cluster_id = cls._get_basic_cluster_id(data_class)
+                    _, rank = cls._get_ni_info(data_class, basic_cluster_id=basic_cluster_id)
                     cluster_index = cluster_index_list[rank[cluster_id]]
                     count += len(cluster_index)
 
@@ -304,10 +324,11 @@ class AttributeAbout:
         print(female)
 
     @classmethod
-    def celeba2txt(cls, attr_id=21):
+    def celeba_cluster2txt(cls):
         random.seed(2)
         # 聚类
         with open('./count/img4cluster.txt', 'w') as f:
+            attr_id = 3  # Attractive
             for label in [0, 1]:
                 mode = -1 if label == 0 else 1
 
@@ -317,11 +338,217 @@ class AttributeAbout:
                 img_list = [f'{_} {label}\n' for _ in img_list]
                 f.writelines(img_list)
 
+    @classmethod
+    def celeba_correlation2txt(cls):
+        root = './dataset/celeba_correlation'
 
-# ClusteredCelebA.plot_pca_coding()
-ClusteredCelebA.coding2pkl()
-ClusteredCelebA.kmeans2pkl()
-ClusteredCelebA.print_kmeans_info()
-ClusteredCelebA.print_ni_info()
-ClusteredCelebA.celeba2txt()
-# AttributeAbout.celeba2txt(attr_id=3)
+        attractive_id = 3
+        blackhair_id = 9
+        blondhair_id = 10
+
+        blond_pog = cls._get_attrs_list((attractive_id, blondhair_id), (1, 1))
+        blond_neg = cls._get_attrs_list((attractive_id, blondhair_id), (-1, 1))
+        black_pog = cls._get_attrs_list((attractive_id, blackhair_id), (1, 1))
+        black_neg = cls._get_attrs_list((attractive_id, blackhair_id), (-1, 1))
+
+        num_max = 9000
+
+        p = 0.2
+        with open(f'{root}/0.txt', 'w') as f:
+            num_blond_pog = int(num_max * (1 - p))
+            num_black_pog = int(num_max * p)
+            for _ in range(num_blond_pog):
+                img = blond_pog.pop()
+                f.write(f'{img} 1\n')
+            for _ in range(num_black_pog):
+                img = black_pog.pop()
+                f.write(f'{img} 1\n')
+
+            num_blond_neg = int(num_max * p)
+            num_black_neg = int(num_max * (1 - p))
+            for _ in range(num_blond_neg):
+                img = blond_neg.pop()
+                f.write(f'{img} 0\n')
+            for _ in range(num_black_neg):
+                img = black_neg.pop()
+                f.write(f'{img} 0\n')
+
+        p = 0.4
+        with open(f'{root}/1.txt', 'w') as f:
+            random.seed(2)
+
+            num_blond_pog = int(num_max * (1 - p))
+            num_black_pog = int(num_max * p)
+
+            blond_p = random.sample(blond_pog, num_blond_pog)
+            black_p = random.sample(black_pog, num_black_pog)
+
+            imgs = zip((blond_p + black_p), [1] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            num_blond_neg = int(num_max * p)
+            num_black_neg = int(num_max * (1 - p))
+
+            blond_n = random.sample(blond_neg, num_blond_neg)
+            black_n = random.sample(black_neg, num_black_neg)
+
+            imgs = zip((blond_n + black_n), [0] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+        p = 0.6
+        with open(f'{root}/2.txt', 'w') as f:
+            random.seed(3)
+
+            num_blond_pog = int(num_max * (1 - p))
+            num_black_pog = int(num_max * p)
+
+            blond_p = random.sample(blond_pog, num_blond_pog)
+            black_p = random.sample(black_pog, num_black_pog)
+
+            imgs = zip((blond_p + black_p), [1] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            num_blond_neg = int(num_max * p)
+            num_black_neg = int(num_max * (1 - p))
+
+            blond_n = random.sample(blond_neg, num_blond_neg)
+            black_n = random.sample(black_neg, num_black_neg)
+
+            imgs = zip((blond_n + black_n), [0] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+        p = 0.8
+        with open(f'{root}/3.txt', 'w') as f:
+            random.seed(4)
+
+            num_blond_pog = int(num_max * (1 - p))
+            num_black_pog = int(num_max * p)
+
+            blond_p = random.sample(blond_pog, num_blond_pog)
+            black_p = random.sample(black_pog, num_black_pog)
+
+            imgs = zip((blond_p + black_p), [1] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            num_blond_neg = int(num_max * p)
+            num_black_neg = int(num_max * (1 - p))
+
+            blond_n = random.sample(blond_neg, num_blond_neg)
+            black_n = random.sample(black_neg, num_black_neg)
+
+            imgs = zip((blond_n + black_n), [0] * num_max)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+    @classmethod
+    def celeba_diversity2txt(cls):
+        root = './dataset/celeba_diversity'
+
+        attractive_id = 3
+        blackhair_id = 9
+        blondhair_id = 10
+        brownhair_id = 12
+        grayhair_id = 18
+
+        black_pog = cls._get_attrs_list((attractive_id, blackhair_id), (1, 1))
+        black_neg = cls._get_attrs_list((attractive_id, blackhair_id), (-1, 1))
+
+        blond_pog = cls._get_attrs_list((attractive_id, blondhair_id), (1, 1))
+        blond_neg = cls._get_attrs_list((attractive_id, blondhair_id), (-1, 1))
+
+        brown_pog = cls._get_attrs_list((attractive_id, brownhair_id), (1, 1))
+        brown_neg = cls._get_attrs_list((attractive_id, brownhair_id), (-1, 1))
+
+        gray_pos = cls._get_attrs_list((attractive_id, grayhair_id), (1, 1))
+        gray_neg = cls._get_attrs_list((attractive_id, grayhair_id), (-1, 1))
+
+        num_test = 1000
+
+        with open(f'{root}/0.txt', 'w') as f:
+            for _ in range(10000):
+                img = black_pog.pop()
+                f.write(f'{img} 1\n')
+            for _ in range(10000):
+                img = black_neg.pop()
+                f.write(f'{img} 0\n')
+
+        i = 2
+        with open(f'{root}/1.txt', 'w') as f:
+            random.seed(i)
+
+            num = int(num_test / i)
+
+            black_p = random.sample(black_pog, num)
+            blond_p = random.sample(blond_pog, num)
+
+            imgs = zip((black_p + blond_p), [1] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            black_n = random.sample(black_neg, num)
+            blond_n = random.sample(blond_neg, num)
+
+            imgs = zip((black_n + blond_n), [0] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+        i = 3
+        with open(f'{root}/2.txt', 'w') as f:
+            random.seed(i)
+
+            num = int(num_test / i)
+
+            black_p = random.sample(black_pog, num)
+            blond_p = random.sample(blond_pog, num)
+            brown_p = random.sample(brown_pog, num + 1)
+
+            imgs = zip((black_p + blond_p + brown_p), [1] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            black_n = random.sample(black_neg, num)
+            blond_n = random.sample(blond_neg, num)
+            brown_n = random.sample(brown_neg, num + 1)
+
+            imgs = zip((black_n + blond_n + brown_n), [0] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+        i = 4
+        with open(f'{root}/3.txt', 'w') as f:
+            random.seed(i)
+
+            num = int(num_test / i)
+
+            black_p = random.sample(black_pog, num)
+            blond_p = random.sample(blond_pog, num)
+            brown_p = random.sample(brown_pog, num)
+            gray_p = random.sample(gray_pos, num)
+
+            imgs = zip((black_p + blond_p + brown_p + gray_p), [1] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+            black_n = random.sample(black_neg, num)
+            blond_n = random.sample(blond_neg, num)
+            brown_n = random.sample(brown_neg, num)
+            gray_n = random.sample(gray_neg, num)
+
+            imgs = zip((black_n + blond_n + brown_n + gray_n), [0] * num_test)
+            imgs = [f'{img} {label}\n' for img, label in imgs]
+            f.writelines(imgs)
+
+
+def plot(img, root='../dataset/CelebA/Img/img_align_celeba'):
+    img = Image.open(f'{root}/{img}')
+    plt.imshow(img)
+    plt.show()
+
+
+if __name__ == '__main__':
+    AttributeAbout.celeba_diversity2txt()
