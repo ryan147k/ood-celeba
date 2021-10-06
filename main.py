@@ -478,7 +478,7 @@ class Experiment:
                 acc = ex_(False)
 
                 acc_list.append(acc)
-                plt.plot(range(len(acc)), acc, markers[i], ms=8, label=models[i])
+                plt.plot(range(len(acc)), acc, markers[i], ms=6, label=models[i], lw=0.4)
             plt.xlabel('OOD Data')
             plt.ylabel('Accuracy')
             plt.title(titles[dataset_id])
@@ -495,10 +495,10 @@ if __name__ == '__main__':
     if args.debug is True:
         args.ex_num = '4'
         args.dataset_id = 0
-        os.environ['CUDA_VISIBLE_DEVICES'] = '3'
-        _train = True
+        os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+        _train = False
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    ex(_train)
-    # Experiment.test_()
+    # ex(_train)
+    Experiment.test_()

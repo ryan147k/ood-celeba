@@ -550,5 +550,20 @@ def plot(img, root='../dataset/CelebA/Img/img_align_celeba'):
     plt.show()
 
 
+def count():
+    res = pickle.load(open('./count/res_test.pkl', 'rb'))
+    for i, acc_list in enumerate(res):
+        markers = ['-s', '-o', '-*', '-^', '-D', '-p']
+        models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
+        titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
+        for acc in acc_list:
+            plt.plot(range(len(acc)), acc, markers[i], ms=6, label=models[i], lw=0.4)
+        plt.xlabel('OOD Data')
+        plt.ylabel('Accuracy')
+        plt.title(titles[i])
+        plt.legend()
+        plt.show()
+
+
 if __name__ == '__main__':
-    AttributeAbout.celeba_diversity2txt()
+    count()
