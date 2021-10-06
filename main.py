@@ -3,18 +3,16 @@
 # AUTHOR: Ryan Hu
 # DATE: 2021/10/4 12:59
 # DESCRIPTION:
-import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
-import torchvision as tv
+import torchvision.models as models
 import torchvision.transforms as transforms
 from model import *
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import os
-from tqdm import tqdm
+import pickle
 from tensorboardX import SummaryWriter
 import random
 from PIL import Image
@@ -28,7 +26,7 @@ parser.add_argument('--dataset_id', type=int)
 parser.add_argument('--batch_size', type=int, default=512)
 parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--weight_decay', type=float, default=1e-4)
-parser.add_argument('--epoch_num', type=int, default=20)
+parser.add_argument('--epoch_num', type=int, default=100)
 parser.add_argument('--print_iter', type=int, default=20)
 args = parser.parse_args()
 
@@ -63,7 +61,7 @@ class ClusteredCelebA(RawCelebA):
 
 class CorrelationCelebA(RawCelebA):
     def __init__(self, _class, root='./dataset/celeba_correlation'):
-        assert 0 <= _class < 5
+        assert 0 <= _class < 4
         file_list = open(os.path.join(root, f'{str(_class)}.txt')).readlines()
         file_list = [_.split() for _ in file_list]
 
@@ -235,7 +233,6 @@ class Experiment:
     """
     记录每一次的实验设置
     """
-    num_cluster = 4
 
     @staticmethod
     def _mkdir(save_dir):
@@ -247,8 +244,8 @@ class Experiment:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-    @classmethod
-    def _split_train_val(cls, dataset):
+    @staticmethod
+    def _split_train_val(dataset):
         """
         将dataset分成两个dataset: train & val
         :param dataset:
@@ -280,8 +277,25 @@ class Experiment:
 
         return _Dataset(dataset, _train=True), _Dataset(dataset, _train=False)
 
-    @classmethod
-    def _basic_test(cls, model, dataset):
+    @staticmethod
+    def _get_dataset(dataset_id, _class):
+        """
+        根据 args.dataset_id 来获取 dataset
+        :param dataset_id:
+        :param _class:
+        :return:
+        """
+        assert 0 <= dataset_id < 3
+
+        if dataset_id == 0:
+            return ClusteredCelebA(_class=_class)
+        elif dataset_id == 1:
+            return CorrelationCelebA(_class=_class)
+        else:
+            return DiversityCelebA(_class=_class)
+
+    @staticmethod
+    def _basic_test(model, dataset):
         """
         获取模型在某个测试集上的loss和acc
         :param model:
@@ -293,83 +307,70 @@ class Experiment:
 
         loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=10)
         loss, acc = val(model, loader)
-        # print('loss {} acc {}'.format(loss, acc))
         return loss, acc
 
     @classmethod
-    def _test(cls, model, save_dir, model_name, datasets, ckpt_nums):
+    def _ex_train(cls, model, save_path, ex_name, train_dataset, val_dataset, test_dataset=None):
         """
-        获取一系列模型检查点在测试集上的准确率
-        :param model: 待测试模型
-        :param save_dir: 模型检查点保存目录
-        :param model_name: 模型检查点名称
-        :param datasets: 测试集列表
-        :param ckpt_nums: 检查点iter (同时是x轴坐标)
+        模型训练
+        :param model:
+        :param save_path:
+        :param ex_name:
+        :param train_dataset:
+        :param val_dataset:
+        :param test_dataset:
         :return:
         """
-        acc_tests = [[] for _ in datasets]
-        # 记录每个epoch的模型在数据集上的准确率
-        for num in tqdm(ckpt_nums):
-            model.load_state_dict(torch.load(f'{save_dir}/{model_name}_e{num}.pt'))
-            # print('[INFO] Iter {}'.format(num), end='\n\t')
-            for i, dataset in enumerate(datasets):
-                _, acc = cls._basic_test(model, dataset)
-                acc_tests[i].append(acc)
-        return acc_tests
+        train(model, save_path=save_path, ex_name=ex_name,
+              train_dataset=train_dataset, val_dataset=val_dataset, test_datasets=test_dataset)
 
-    @staticmethod
-    def _plot(scalars_list, labels, x_axis):
+    @classmethod
+    def _ex_test(cls, model, save_path, dataset_id):
         """
-        画曲线图
-        :param scalars_list: List[List], 每一个子List就是一条曲线
-        :param labels: 每一个子List所代表的标签
-        :param x_axis: x轴数值
+        模型测试：返回模型在某种分布迁移下的测试准确率列表
+        :param model:
+        :param save_path
+        :param dataset_id:
         :return:
         """
-        for i in range(len(scalars_list)):
-            plt.plot(x_axis, scalars_list[i], label=labels[i])
-            plt.xlabel('Iter')
-            plt.ylabel('Acc')
-            plt.legend()
-            plt.show()
+        model.load_state_dict(torch.load(f'{save_path}_best.pt'))
+        acc_list = []
 
-    @classmethod
-    def _plot_confusion_matrix(cls, model, data_dir, dataset_name):
-        """混淆矩阵可视化"""
-        model = nn.parallel.DataParallel(model)
-        model.to(device)
+        num_cluster = 5 if dataset_id == 0 else 4
 
-        # dataset = ColorMNIST(data_dir=data_dir, dataset_name=dataset_name)
-        # loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
-        # plot_confusion_matrix(get_confusion_matrix(model, loader, device))
+        for i in range(num_cluster):
+            dataset = cls._get_dataset(dataset_id, _class=i)
 
-    @classmethod
-    def _ex(cls, ex_name, _train, model, model_name, save_dir, train_dataset, val_dataset, test_dataset=None):
+            # i == 0 时,相当于是训练数据,所以只取验证集出来
+            if i == 0:
+                _, dataset = cls._split_train_val(dataset)
 
-        if _train:
-            train(model, save_path='{}/{}'.format(save_dir, model_name),
-                  ex_name=ex_name, train_dataset=train_dataset,
-                  val_dataset=val_dataset, test_datasets=test_dataset)
-        else:
-            model.load_state_dict(torch.load(f'{save_dir}/{model_name}_best.pt'))
-            acc_list = []
-            _, acc = cls._basic_test(model, val_dataset)
+            _, acc = cls._basic_test(model, dataset)
             acc_list.append(acc)
 
-            for i in range(1, cls.num_cluster):
-                if args.dataset_id == 0:
-                    dataset = ClusteredCelebA(i)
-                elif args.dataset_id == 1:
-                    dataset = CorrelationCelebA(i)
-                elif args.dataset_id == 2:
-                    dataset = DiversityCelebA(i)
+        return acc_list
 
-                _, acc = cls._basic_test(model, dataset)
-                acc_list.append(acc)
+    @classmethod
+    def _ex(cls, _train, model, save_dir, model_name, ex_name, dataset_id):
+        """
+        模型训练 or 测试
+        :param _train: 训练 or 测试
+        :param model:
+        :param save_dir: 模型检查点保存模型
+        :param model_name: 模型名称
+        :param ex_name:
+        :return:
+        """
+        model_name = f'd{str(args.dataset_id)}_{model_name}'
+        save_path = os.path.join(save_dir, model_name)
 
-            plt.plot(range(cls.num_cluster), acc_list, '-o')
-            plt.title(f'{model_name}')
-            plt.show()
+        if _train:
+            dataset = cls._get_dataset(args.dataset_id, _class=0)
+            train_dataset, val_dataset = cls._split_train_val(dataset)
+
+            cls._ex_train(model, save_path, ex_name, train_dataset, val_dataset)
+        else:
+            return cls._ex_test(model, save_path, dataset_id)
 
     @classmethod
     def ex1(cls, _train=False):
@@ -378,22 +379,13 @@ class Experiment:
         print(args)
 
         ex_name = 'ex1'
-        save_dir = './ckpts/ex1/1004'
+        save_dir = './ckpts/ex1'
         cls._mkdir(save_dir)
 
-        model = tv.models.resnet18(num_classes=2)
+        model = models.resnet18(num_classes=2)
         model_name = 'res18'
 
-        if args.dataset_id == 0:
-            dataset = ClusteredCelebA(0)
-        elif args.dataset_id == 1:
-            dataset = CorrelationCelebA(0)
-        elif args.dataset_id == 2:
-            dataset = DiversityCelebA(0)
-        model_name = f'd{str(args.dataset_id)}_{model_name}'
-
-        train_dataset, val_dataset = cls._split_train_val(dataset)
-        cls._ex(ex_name, _train, model, model_name, save_dir, train_dataset, val_dataset)
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
 
     @classmethod
     def ex2(cls, _train=False):
@@ -402,22 +394,13 @@ class Experiment:
         print(args)
 
         ex_name = 'ex2'
-        save_dir = './ckpts/ex2/1004'
+        save_dir = './ckpts/ex2'
         cls._mkdir(save_dir)
 
-        model = tv.models.AlexNet(num_classes=2)
+        model = models.AlexNet(num_classes=2)
         model_name = 'alexnet'
 
-        if args.dataset_id == 0:
-            dataset = ClusteredCelebA(0)
-        elif args.dataset_id == 1:
-            dataset = CorrelationCelebA(0)
-        elif args.dataset_id == 2:
-            dataset = DiversityCelebA(0)
-        model_name = f'd{str(args.dataset_id)}_{model_name}'
-
-        train_dataset, val_dataset = cls._split_train_val(dataset)
-        cls._ex(ex_name, _train, model, model_name, save_dir, train_dataset, val_dataset)
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
 
     @classmethod
     def ex3(cls, _train=False):
@@ -426,32 +409,86 @@ class Experiment:
         print(args)
 
         ex_name = 'ex3'
-        save_dir = './ckpts/ex3/1005'
+        save_dir = './ckpts/ex3'
         cls._mkdir(save_dir)
 
-        model = tv.models.vgg11(num_classes=2)
+        model = models.vgg11(num_classes=2)
         model_name = 'vgg11'
 
-        if args.dataset_id == 0:
-            dataset = ClusteredCelebA(0)
-        elif args.dataset_id == 1:
-            dataset = CorrelationCelebA(0)
-        elif args.dataset_id == 2:
-            dataset = DiversityCelebA(0)
-        model_name = f'd{str(args.dataset_id)}_{model_name}'
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
 
-        train_dataset, val_dataset = cls._split_train_val(dataset)
-        cls._ex(ex_name, _train, model, model_name, save_dir, train_dataset, val_dataset)
+    @classmethod
+    def ex4(cls, _train=False):
+        args.batch_size = 64
+        args.epoch_num = 30
+        print(args)
+
+        ex_name = 'ex4'
+        save_dir = './ckpts/ex4'
+        cls._mkdir(save_dir)
+
+        model = models.DenseNet(num_classes=2)
+        model_name = 'densenet121'
+
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+
+    @classmethod
+    def ex5(cls, _train=False):
+        args.epoch_num = 60
+        print(args)
+
+        ex_name = 'ex5'
+        save_dir = './ckpts/ex5'
+        cls._mkdir(save_dir)
+
+        model = models.squeezenet1_0(num_classes=2)
+        model_name = 'squeezenet1_0'
+
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+
+    @classmethod
+    def test_(cls):
+        """
+        获取整体测试结果
+        :return:
+        """
+        res = []
+
+        for dataset_id in range(3):
+            args.dataset_id = dataset_id
+
+            acc_list = []
+
+            markers = ['-s', '-o', '-*', '->']
+            models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121']
+            titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
+            for i, ex_num in enumerate([1, 2, 3, 4]):
+                args.ex_num = str(ex_num)
+                ex_ = getattr(cls, f'ex{args.ex_num}')
+                acc = ex_(False)
+
+                acc_list.append(acc)
+                plt.plot(range(len(acc)), acc, markers[i], ms=8, label=models[i])
+            plt.xlabel('OOD Data')
+            plt.ylabel('Accuracy')
+            plt.title(titles[dataset_id])
+            plt.legend()
+            plt.show()
+
+            res.append(acc_list)
+
+        pickle.dump(res, open('./count/res_test.pkl', 'wb'))
 
 
 if __name__ == '__main__':
     _train = True
     if args.debug is True:
-        args.ex_num = '3'
-        args.dataset_id = 2
-        os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-        _train = False
+        args.ex_num = '4'
+        args.dataset_id = 0
+        os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+        _train = True
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     ex(_train)
+    # Experiment.test_()
