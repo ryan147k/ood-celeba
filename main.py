@@ -375,7 +375,6 @@ class Experiment:
     @classmethod
     def ex1(cls, _train=False):
         args.batch_size = 256
-        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex1'
@@ -390,7 +389,6 @@ class Experiment:
     @classmethod
     def ex2(cls, _train=False):
         args.batch_size = 512
-        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex2'
@@ -405,7 +403,6 @@ class Experiment:
     @classmethod
     def ex3(cls, _train=False):
         args.batch_size = 128
-        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex3'
@@ -420,7 +417,6 @@ class Experiment:
     @classmethod
     def ex4(cls, _train=False):
         args.batch_size = 64
-        args.epoch_num = 30
         print(args)
 
         ex_name = 'ex4'
@@ -434,7 +430,7 @@ class Experiment:
 
     @classmethod
     def ex5(cls, _train=False):
-        args.epoch_num = 60
+        args.batch_size = 256
         print(args)
 
         ex_name = 'ex5'
@@ -443,6 +439,20 @@ class Experiment:
 
         model = models.squeezenet1_0(num_classes=2)
         model_name = 'squeezenet1_0'
+
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+
+    @classmethod
+    def ex6(cls, _train=False):
+        args.batch_size = 64
+        print(args)
+
+        ex_name = 'ex6'
+        save_dir = './ckpts/ex6'
+        cls._mkdir(save_dir)
+
+        model = models.resnext50_32x4d(num_classes=2)
+        model_name = 'resnext50_32x4d'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
 
@@ -459,10 +469,10 @@ class Experiment:
 
             acc_list = []
 
-            markers = ['-s', '-o', '-*', '->']
-            models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121']
+            markers = ['-s', '-o', '-*', '-^', '-D', '-p']
+            models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
             titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
-            for i, ex_num in enumerate([1, 2, 3, 4]):
+            for i, ex_num in enumerate([1, 2, 3, 4, 5, 6]):
                 args.ex_num = str(ex_num)
                 ex_ = getattr(cls, f'ex{args.ex_num}')
                 acc = ex_(False)
