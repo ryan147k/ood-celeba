@@ -24,13 +24,46 @@
 #  CUDA_VISIBLE_DEVICES=${cuda[${i}]} nohup python -u main.py --batch_size=${batch_size} --debug=False --ex_num=${ex_num} --dataset_type=${dataset_type} --train_class=${train_class} > log/ex${ex_num}_${dataset_type}_${train_class}.log 2>&1 &
 #done
 
-ex_num=3
+#ex_num=3
+#tcl=(1 2 3)
+#cuda=(0 1 4)
+#for i in 0 1 2
+#do
+#  batch_size=128
+#  dataset_type=0
+#  train_class=${tcl[${i}]}
+#  CUDA_VISIBLE_DEVICES=${cuda[${i}]} nohup python -u main.py --batch_size=${batch_size} --debug=False --ex_num=${ex_num} --dataset_type=${dataset_type} --train_class=${train_class} > log/ex${ex_num}_${dataset_type}_${train_class}.log 2>&1 &
+#done
+
+#ex_num=4
+#tcl=(1 2 3)
+#cuda=(0 1 4)
+#for i in 0 1 2
+#do
+#  batch_size=64
+#  dataset_type=0
+#  train_class=${tcl[${i}]}
+#  CUDA_VISIBLE_DEVICES=${cuda[${i}]} nohup python -u main.py --batch_size=${batch_size} --debug=False --ex_num=${ex_num} --dataset_type=${dataset_type} --train_class=${train_class} > log/ex${ex_num}_${dataset_type}_${train_class}.log 2>&1 &
+#done
+
+ex_num=5
 tcl=(1 2 3)
 cuda=(0 1 4)
 for i in 0 1 2
 do
-  batch_size=128
+  batch_size=256
   dataset_type=0
   train_class=${tcl[${i}]}
   CUDA_VISIBLE_DEVICES=${cuda[${i}]} nohup python -u main.py --batch_size=${batch_size} --debug=False --ex_num=${ex_num} --dataset_type=${dataset_type} --train_class=${train_class} > log/ex${ex_num}_${dataset_type}_${train_class}.log 2>&1 &
 done
+
+#ex_num=6
+#tcl=(1 2 3)
+#cuda=(0 1 4)
+#for i in 0 1 2
+#do
+#  batch_size=64
+#  dataset_type=0
+#  train_class=${tcl[${i}]}
+#  CUDA_VISIBLE_DEVICES=${cuda[${i}]} nohup python -u main.py --batch_size=${batch_size} --debug=False --ex_num=${ex_num} --dataset_type=${dataset_type} --train_class=${train_class} > log/ex${ex_num}_${dataset_type}_${train_class}.log 2>&1 &
+#done

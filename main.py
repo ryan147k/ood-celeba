@@ -349,15 +349,13 @@ class Experiment:
         # 验证集准确率
         train_dataset = cls._get_dataset(dataset_type, _class=train_class)
         _, val_dataset = cls._split_train_val(train_dataset)
-        _, acc = cls._basic_test(model, val_dataset)
+        _, acc = cls._basic_test(model, train_dataset)
         acc_list.append(acc)
 
         for _class in test_class_list:
             test_dataset = cls._get_dataset(dataset_type, _class=_class)
             _, acc = cls._basic_test(model, test_dataset)
             acc_list.append(acc)
-
-        acc_list.append(acc)
 
         return acc_list
 
@@ -372,11 +370,11 @@ class Experiment:
         :param ex_name:
         :return:
         """
-        model_name = f'd{str(args.dataset_type)}c{str(train_class)}_{model_name}'
+        model_name = f'd{str(dataset_type)}c{str(train_class)}_{model_name}'
         save_path = os.path.join(save_dir, model_name)
 
         if _train:
-            dataset = cls._get_dataset(args.dataset_type, _class=train_class)
+            dataset = cls._get_dataset(dataset_type, _class=train_class)
             train_dataset, val_dataset = cls._split_train_val(dataset)
 
             cls._ex_train(model, save_path, ex_name, train_dataset, val_dataset)
@@ -440,11 +438,13 @@ class Experiment:
         model = models.DenseNet(num_classes=2)
         model_name = 'densenet121'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def ex5(cls, _train=False):
         args.batch_size = 256
+        args.epoch_num = 200
         print(args)
 
         ex_name = 'ex5'
@@ -454,7 +454,8 @@ class Experiment:
         model = models.squeezenet1_0(num_classes=2)
         model_name = 'squeezenet1_0'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def ex6(cls, _train=False):
@@ -468,41 +469,25 @@ class Experiment:
         model = models.resnext50_32x4d(num_classes=2)
         model_name = 'resnext50_32x4d'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def test_(cls):
-        # TODO
         """
         获取整体测试结果
         :return:
         """
-        res = []
+        models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
 
-        for dataset_type in range(3):
-            args.dataset_type = dataset_type
+        for i, ex_num in enumerate([1, 2, 3, 4, 5, 6]):
+            args.ex_num = str(ex_num)
+            args.dataset_type = 0
+            args.train_class = 3
 
-            acc_list = []
-
-            markers = ['-s', '-o', '-*', '-^', '-D', '-p']
-            models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
-            titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
-            for i, ex_num in enumerate([1, 2, 3, 4, 5, 6]):
-                args.ex_num = str(ex_num)
-                ex_ = getattr(cls, f'ex{args.ex_num}')
-                acc = ex_(False)
-
-                acc_list.append(acc)
-                plt.plot(range(len(acc)), acc, markers[i], ms=6, label=models[i], lw=0.4)
-            plt.xlabel('OOD Data')
-            plt.ylabel('Accuracy')
-            plt.title(titles[dataset_type])
-            plt.legend()
-            plt.show()
-
-            res.append(acc_list)
-
-        pickle.dump(res, open('./count/res_test.pkl', 'wb'))
+            ex_ = getattr(cls, f'ex{args.ex_num}')
+            acc = ex_(False)
+            print(acc)
 
 
 if __name__ == '__main__':
@@ -510,10 +495,10 @@ if __name__ == '__main__':
     if args.debug is True:
         args.ex_num = '4'
         args.dataset_type = 0
-        os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
         _train = False
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    ex(_train)
-    # Experiment.test_()
+    # ex(_train)
+    Experiment.test_()
