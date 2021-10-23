@@ -50,6 +50,15 @@ class RawCelebA(Dataset):
         return len(self.file_list)
 
 
+class ShiftedCelebA(RawCelebA):
+    def __init__(self, _class, root='./dataset/celeba_shift'):
+        assert 0 <= _class < 4
+        file_list = open(os.path.join(root, f'{str(_class)}.txt')).readlines()
+        file_list = [_.split() for _ in file_list]
+
+        super(ShiftedCelebA, self).__init__(file_list)
+
+
 class ClusteredCelebA(RawCelebA):
     def __init__(self, _class, root='./dataset/celeba_clustered'):
         assert 0 <= _class < 5

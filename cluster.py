@@ -300,7 +300,16 @@ class AttributeAbout:
         return list(res)
 
     @classmethod
-    def print_hair_info_with_attr(cls, basic_attr_id=21):
+    def plot_img(cls, attr_id_list=(), attr_mode_list=()):
+        root = '../dataset/CelebA/Img/img_align_celeba'
+
+        img_list = cls._get_attrs_list(attr_id_list, attr_mode_list)
+        for img in img_list[:5]:
+            plt.imshow(Image.open(f'{root}/{img}'))
+            plt.show()
+
+    @classmethod
+    def print_hair_info_with_attr(cls, basic_attr_id=3):
         """
         输出某种属性下不同头发颜色的数量
         :param basic_attr_id:
@@ -310,18 +319,86 @@ class AttributeAbout:
             f.readline()
             attr_list = f.readline().split()
 
-        male = {}
+        pos = {}
         for attr_id in [9, 10, 12, 18]:
             attr_name = attr_list[attr_id - 1]
             res = cls._get_attrs_list(attr_id_list=(basic_attr_id, attr_id), attr_mode_list=(1, 1))
-            male[attr_name] = len(res)
-        female = {}
+            pos[attr_name] = len(res)
+        neg = {}
         for attr_id in [9, 10, 12, 18]:
             attr_name = attr_list[attr_id - 1]
             res = cls._get_attrs_list(attr_id_list=[basic_attr_id, attr_id], attr_mode_list=[-1, 1])
-            female[attr_name] = len(res)
-        print(male)
-        print(female)
+            neg[attr_name] = len(res)
+        print(f"{attr_list[basic_attr_id - 1]}")
+        print(f'pos: {pos}')
+        print(f'neg: {neg}')
+
+    @classmethod
+    def celeba_shift2txt(cls):
+        root = './dataset/celeba_shift'
+
+        male_id = 21
+
+        blackhair_id = 9
+        blondhair_id = 10
+        brownhair_id = 12
+        grayhair_id = 18
+
+        num_examples = 1200
+
+        # origin
+        male = (
+            cls._get_attrs_list((male_id, blackhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (1, 1))[:num_examples]
+        )
+
+        female = (
+            cls._get_attrs_list((male_id, blackhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (-1, 1))[:num_examples]
+        )
+
+        # origin
+        with open(f'{root}/origin.txt', 'w') as f:
+            pos = [f'{img} 1\n' for img in np.hstack(male)]
+            neg = [f'{img} 0\n' for img in np.hstack(female)]
+            f.writelines(pos)
+            f.writelines(neg)
+
+        # marginal shift: P(X) change P(Y|X) remains
+        with open(f'{root}/marginal_ds.txt', 'w') as f:
+            pos = male[0] + male[1]
+            neg = female[0] + female[1]
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
+
+            f.writelines(pos)
+            f.writelines(neg)
+
+        # conditional shift: P(Y|X) change P(X) remains
+        with open(f'{root}/conditional_ds.txt', 'w') as f:
+            pos = male[0] + male[2]
+            neg = female[1] + female[3]
+
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
+
+            f.writelines(pos)
+            f.writelines(neg)
+
+        # joint shift: P(X) change P(Y|X) change
+        with open(f'{root}/joint_ds.txt', 'w') as f:
+            pos = male[0] + male[1]
+            neg = female[1] + female[3]
+
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
+
+            f.writelines(pos)
+            f.writelines(neg)
 
     @classmethod
     def celeba_cluster2txt(cls):
@@ -547,23 +624,29 @@ class AttributeAbout:
 def plot(img, root='../dataset/CelebA/Img/img_align_celeba'):
     img = Image.open(f'{root}/{img}')
     plt.imshow(img)
+    plt.axis('off')
     plt.show()
 
 
 def count():
     res = pickle.load(open('./count/res_test.pkl', 'rb'))
-    for i, acc_list in enumerate(res):
-        markers = ['-s', '-o', '-*', '-^', '-D', '-p']
-        models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
-        titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
-        for acc in acc_list:
-            plt.plot(range(len(acc)), acc, markers[i], ms=6, label=models[i], lw=0.4)
-        plt.xlabel('OOD Data')
-        plt.ylabel('Accuracy')
-        plt.title(titles[i])
-        plt.legend()
-        plt.show()
+    ood0, ood1, ood2 = res[0], res[1], res[2]
+
+    for i in ood2:
+        print(str(i).replace(',', ';'))
+
+    # for i, acc_list in enumerate(res):
+    #     markers = ['-s', '-o', '-*', '-^', '-D', '-p']
+    #     models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
+    #     titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
+    #     for j, acc in enumerate(acc_list):
+    #         plt.plot(range(len(acc)), acc, markers[j], ms=6, label=models[j], lw=0.5)
+    #     plt.xlabel('OOD Data')
+    #     plt.ylabel('Accuracy')
+    #     plt.title(titles[i])
+    #     plt.legend()
+    #     plt.show()
 
 
 if __name__ == '__main__':
-    count()
+    AttributeAbout.celeba_shift2txt()
