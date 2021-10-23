@@ -2,7 +2,7 @@
 # -*- coding:UTF-8 -*-
 # AUTHOR: Ryan Hu
 # DATE: 2021/10/4 12:59
-# DESCRIPTION:
+# DESCRIPTION: dataset_type represent different dataset (e.g. celeba_diversity)
 from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torchvision.models as models
@@ -21,7 +21,8 @@ from PIL import Image
 parser = argparse.ArgumentParser()
 parser.add_argument('--debug', default=True)
 parser.add_argument('--ex_num', type=str)
-parser.add_argument('--dataset_id', type=int)
+parser.add_argument('--dataset_type', type=int)
+parser.add_argument('--train_class', type=int)
 
 parser.add_argument('--batch_size', type=int, default=512)
 parser.add_argument('--lr', type=float, default=1e-4)
@@ -287,21 +288,21 @@ class Experiment:
         return _Dataset(dataset, _train=True), _Dataset(dataset, _train=False)
 
     @staticmethod
-    def _get_dataset(dataset_id, _class):
+    def _get_dataset(dataset_type, _class):
         """
-        根据 args.dataset_id 来获取 dataset
-        :param dataset_id:
+        根据 args.dataset_type 来获取 dataset
+        :param dataset_type:
         :param _class:
         :return:
         """
-        assert 0 <= dataset_id < 3
+        assert 0 <= dataset_type < 3
 
-        if dataset_id == 0:
-            return ClusteredCelebA(_class=_class)
-        elif dataset_id == 1:
-            return CorrelationCelebA(_class=_class)
-        else:
+        if dataset_type == 0:
+            return ShiftedCelebA(_class=_class)
+        elif dataset_type == 1:
             return DiversityCelebA(_class=_class)
+        else:
+            return CorrelationCelebA(_class=_class)
 
     @staticmethod
     def _basic_test(model, dataset):
@@ -334,52 +335,53 @@ class Experiment:
               train_dataset=train_dataset, val_dataset=val_dataset, test_datasets=test_dataset)
 
     @classmethod
-    def _ex_test(cls, model, save_path, dataset_id):
+    def _ex_test(cls, model, save_path, dataset_type, train_class, test_class_list):
         """
         模型测试：返回模型在某种分布迁移下的测试准确率列表
         :param model:
         :param save_path
-        :param dataset_id:
+        :param dataset_type:
         :return:
         """
         model.load_state_dict(torch.load(f'{save_path}_best.pt'))
         acc_list = []
 
-        num_cluster = 5 if dataset_id == 0 else 4
+        # 验证集准确率
+        train_dataset = cls._get_dataset(dataset_type, _class=train_class)
+        _, val_dataset = cls._split_train_val(train_dataset)
+        _, acc = cls._basic_test(model, val_dataset)
+        acc_list.append(acc)
 
-        for i in range(num_cluster):
-            dataset = cls._get_dataset(dataset_id, _class=i)
-
-            # i == 0 时,相当于是训练数据,所以只取验证集出来
-            if i == 0:
-                _, dataset = cls._split_train_val(dataset)
-
-            _, acc = cls._basic_test(model, dataset)
+        for _class in test_class_list:
+            test_dataset = cls._get_dataset(dataset_type, _class=_class)
+            _, acc = cls._basic_test(model, test_dataset)
             acc_list.append(acc)
+
+        acc_list.append(acc)
 
         return acc_list
 
     @classmethod
-    def _ex(cls, _train, model, save_dir, model_name, ex_name, dataset_id):
+    def _ex(cls, _train, model, save_dir, model_name, ex_name, dataset_type, train_class, test_class_list):
         """
         模型训练 or 测试
         :param _train: 训练 or 测试
         :param model:
-        :param save_dir: 模型检查点保存模型
+        :param save_dir: 模型检查点保存目录
         :param model_name: 模型名称
         :param ex_name:
         :return:
         """
-        model_name = f'd{str(args.dataset_id)}_{model_name}'
+        model_name = f'd{str(args.dataset_type)}c{str(train_class)}_{model_name}'
         save_path = os.path.join(save_dir, model_name)
 
         if _train:
-            dataset = cls._get_dataset(args.dataset_id, _class=0)
+            dataset = cls._get_dataset(args.dataset_type, _class=train_class)
             train_dataset, val_dataset = cls._split_train_val(dataset)
 
             cls._ex_train(model, save_path, ex_name, train_dataset, val_dataset)
         else:
-            return cls._ex_test(model, save_path, dataset_id)
+            return cls._ex_test(model, save_path, dataset_type, train_class, test_class_list)
 
     @classmethod
     def ex1(cls, _train=False):
@@ -393,7 +395,8 @@ class Experiment:
         model = models.resnet18(num_classes=2)
         model_name = 'res18'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def ex2(cls, _train=False):
@@ -407,7 +410,8 @@ class Experiment:
         model = models.AlexNet(num_classes=2)
         model_name = 'alexnet'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def ex3(cls, _train=False):
@@ -421,7 +425,8 @@ class Experiment:
         model = models.vgg11(num_classes=2)
         model_name = 'vgg11'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name,
+                       args.dataset_type, args.train_class, test_class_list=[0])
 
     @classmethod
     def ex4(cls, _train=False):
@@ -435,7 +440,7 @@ class Experiment:
         model = models.DenseNet(num_classes=2)
         model_name = 'densenet121'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
 
     @classmethod
     def ex5(cls, _train=False):
@@ -449,7 +454,7 @@ class Experiment:
         model = models.squeezenet1_0(num_classes=2)
         model_name = 'squeezenet1_0'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
 
     @classmethod
     def ex6(cls, _train=False):
@@ -463,18 +468,19 @@ class Experiment:
         model = models.resnext50_32x4d(num_classes=2)
         model_name = 'resnext50_32x4d'
 
-        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_id)
+        return cls._ex(_train, model, save_dir, model_name, ex_name, args.dataset_type)
 
     @classmethod
     def test_(cls):
+        # TODO
         """
         获取整体测试结果
         :return:
         """
         res = []
 
-        for dataset_id in range(3):
-            args.dataset_id = dataset_id
+        for dataset_type in range(3):
+            args.dataset_type = dataset_type
 
             acc_list = []
 
@@ -490,7 +496,7 @@ class Experiment:
                 plt.plot(range(len(acc)), acc, markers[i], ms=6, label=models[i], lw=0.4)
             plt.xlabel('OOD Data')
             plt.ylabel('Accuracy')
-            plt.title(titles[dataset_id])
+            plt.title(titles[dataset_type])
             plt.legend()
             plt.show()
 
@@ -503,11 +509,11 @@ if __name__ == '__main__':
     _train = True
     if args.debug is True:
         args.ex_num = '4'
-        args.dataset_id = 0
+        args.dataset_type = 0
         os.environ['CUDA_VISIBLE_DEVICES'] = '7'
         _train = False
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # ex(_train)
-    Experiment.test_()
+    ex(_train)
+    # Experiment.test_()
