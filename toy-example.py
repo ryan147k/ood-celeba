@@ -34,13 +34,13 @@ def get_dataset(mode, p=1, r=1):
 
         x2 = []
         for _ in range(num_examples):
-            p_ = np.random.rand()
+            p_ = np.random.uniform()
             if p_ < p:
                 x2.append(np.random.uniform(-1, 0))
             else:
                 x2.append(np.random.uniform(0, 1))
         for _ in range(num_examples):
-            p_ = np.random.rand()
+            p_ = np.random.uniform()
             if p_ < p:
                 x2.append(np.random.uniform(0, 1))
             else:
@@ -65,13 +65,13 @@ def get_dataset(mode, p=1, r=1):
 
         x2 = []
         for _ in range(num_examples):
-            p_ = np.random.rand()
+            p_ = np.random.uniform()
             if p_ < p:
                 x2.append(np.random.uniform(-r, 0))
             else:
                 x2.append(np.random.uniform(0, r))
         for _ in range(num_examples):
-            p_ = np.random.rand()
+            p_ = np.random.uniform()
             if p_ < p:
                 x2.append(np.random.uniform(0, r))
             else:

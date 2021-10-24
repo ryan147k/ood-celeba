@@ -53,7 +53,7 @@ class RawCelebA(Dataset):
 
 class ShiftedCelebA(RawCelebA):
     def __init__(self, _class, root='./dataset/celeba_shift'):
-        assert 0 <= _class < 4
+        assert 0 <= _class < 7
         file_list = open(os.path.join(root, f'{str(_class)}.txt')).readlines()
         file_list = [_.split() for _ in file_list]
 
@@ -349,7 +349,7 @@ class Experiment:
         # 验证集准确率
         train_dataset = cls._get_dataset(dataset_type, _class=train_class)
         _, val_dataset = cls._split_train_val(train_dataset)
-        _, acc = cls._basic_test(model, train_dataset)
+        _, acc = cls._basic_test(model, val_dataset)
         acc_list.append(acc)
 
         for _class in test_class_list:
@@ -394,7 +394,7 @@ class Experiment:
         model_name = 'res18'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def ex2(cls, _train=False):
@@ -409,7 +409,7 @@ class Experiment:
         model_name = 'alexnet'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def ex3(cls, _train=False):
@@ -424,7 +424,7 @@ class Experiment:
         model_name = 'vgg11'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def ex4(cls, _train=False):
@@ -439,7 +439,7 @@ class Experiment:
         model_name = 'densenet121'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def ex5(cls, _train=False):
@@ -455,7 +455,7 @@ class Experiment:
         model_name = 'squeezenet1_0'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def ex6(cls, _train=False):
@@ -470,7 +470,7 @@ class Experiment:
         model_name = 'resnext50_32x4d'
 
         return cls._ex(_train, model, save_dir, model_name, ex_name,
-                       args.dataset_type, args.train_class, test_class_list=[0])
+                       args.dataset_type, args.train_class, test_class_list=[args.train_class + 3])
 
     @classmethod
     def test_(cls):
@@ -478,16 +478,24 @@ class Experiment:
         获取整体测试结果
         :return:
         """
+        import csv
         models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
+        acc_list = []
 
         for i, ex_num in enumerate([1, 2, 3, 4, 5, 6]):
             args.ex_num = str(ex_num)
             args.dataset_type = 0
-            args.train_class = 3
 
-            ex_ = getattr(cls, f'ex{args.ex_num}')
-            acc = ex_(False)
-            print(acc)
+            acc_list.append([])
+
+            for _class in range(1, 4):
+                args.train_class = _class
+                ex_ = getattr(cls, f'ex{args.ex_num}')
+                iid_acc, ood_acc = ex_(False)
+                acc_list[i].append(iid_acc)
+                acc_list[i].append(ood_acc)
+
+        csv.writer(open('./count/test_result.csv', 'w')).writerows(acc_list)
 
 
 if __name__ == '__main__':
@@ -495,7 +503,7 @@ if __name__ == '__main__':
     if args.debug is True:
         args.ex_num = '4'
         args.dataset_type = 0
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '3'
         _train = False
 
     ex = getattr(Experiment, f'ex{args.ex_num.strip()}')

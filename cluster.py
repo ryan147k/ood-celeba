@@ -41,11 +41,11 @@ class RawCelebA(Dataset):
 
 
 class ClusteredCelebA:
-    file_list = [_.split() for _ in open('./count/img4cluster.txt').readlines()]
+    file_list = [_.split() for _ in open('./dataset/celeba_shift/0.txt').readlines()]
     encoder = tv.models.resnet50(pretrained=True)
 
     num_class = 2
-    num_cluster = 5
+    num_cluster = 4
 
     @classmethod
     def t(cls):
@@ -233,33 +233,31 @@ class ClusteredCelebA:
 
     @classmethod
     def celeba2txt(cls):
-        root = './dataset/celeba_clustered'
-        for cluster_id in tqdm(range(cls.num_cluster)):
-            data_path = f'{root}/{str(cluster_id)}.txt'
+        # TODO
+        root = './dataset/celeba_shift/4.txt'
 
-            with open(data_path, 'w') as f:
-                count = 0
+        with open(root, 'w') as f:
+            count = 0
 
-                for data_class in range(cls.num_class):
-                    # 获取某个数字类别所有的在盖类别内的聚类index
-                    cluster_index_list = cls._get_cluster_index_list(data_class)
-                    # 得到聚类的NI值的排名
-                    basic_cluster_id = cls._get_basic_cluster_id(data_class)
-                    _, rank = cls._get_ni_info(data_class, basic_cluster_id=basic_cluster_id)
-                    cluster_index = cluster_index_list[rank[cluster_id]]
-                    count += len(cluster_index)
-
-                    img_list = cls._get_img_list(data_class)
-
-                    # 该聚类对应的img list
-                    img_cluster = []
-                    for idx in cluster_index:
-                        img_cluster.append(img_list[idx])
-
-                    img_cluster = [f'{img} {label}\n' for img, label in img_cluster]
-                    f.writelines(img_cluster)
-
+            for data_class in range(cls.num_class):
+                # 获取某个数字类别所有的在盖类别内的聚类index
+                cluster_index_list = cls._get_cluster_index_list(data_class)
+                # 得到聚类的NI值的排名
+                basic_cluster_id = cls._get_basic_cluster_id(data_class)
+                _, rank = cls._get_ni_info(data_class, basic_cluster_id=basic_cluster_id)
+                cluster_index = cluster_index_list[rank[0]]  # TODO
+                count += len(cluster_index)
                 print(count)
+
+                img_list = cls._get_img_list(data_class)
+
+                # 该聚类对应的img list
+                img_cluster = []
+                for idx in cluster_index:
+                    img_cluster.append(img_list[idx])
+
+                img_cluster = [f'{img} {label}\n' for img, label in img_cluster]
+                f.writelines(img_cluster)
 
 
 class AttributeAbout:
@@ -362,24 +360,31 @@ class AttributeAbout:
         )
 
         # origin
-        with open(f'{root}/origin.txt', 'w') as f:
+        with open(f'{root}/0.txt', 'w') as f:
             pos = [f'{img} 1\n' for img in np.hstack(male)]
             neg = [f'{img} 0\n' for img in np.hstack(female)]
             f.writelines(pos)
             f.writelines(neg)
 
         # marginal shift: P(X) change P(Y|X) remains
-        with open(f'{root}/marginal_ds.txt', 'w') as f:
+        with open(f'{root}/1.txt', 'w') as f:
             pos = male[0] + male[1]
             neg = female[0] + female[1]
             pos = [f'{img} 1\n' for img in pos]
             neg = [f'{img} 0\n' for img in neg]
+            f.writelines(pos)
+            f.writelines(neg)
 
+        with open(f'{root}/4.txt', 'w') as f:
+            pos = male[2] + male[3]
+            neg = female[2] + female[3]
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
             f.writelines(pos)
             f.writelines(neg)
 
         # conditional shift: P(Y|X) change P(X) remains
-        with open(f'{root}/conditional_ds.txt', 'w') as f:
+        with open(f'{root}/2.txt', 'w') as f:
             pos = male[0] + male[2]
             neg = female[1] + female[3]
 
@@ -389,10 +394,30 @@ class AttributeAbout:
             f.writelines(pos)
             f.writelines(neg)
 
+        with open(f'{root}/5.txt', 'w') as f:
+            pos = male[1] + male[3]
+            neg = female[0] + female[2]
+
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
+
+            f.writelines(pos)
+            f.writelines(neg)
+
         # joint shift: P(X) change P(Y|X) change
-        with open(f'{root}/joint_ds.txt', 'w') as f:
+        with open(f'{root}/3.txt', 'w') as f:
             pos = male[0] + male[1]
             neg = female[1] + female[3]
+
+            pos = [f'{img} 1\n' for img in pos]
+            neg = [f'{img} 0\n' for img in neg]
+
+            f.writelines(pos)
+            f.writelines(neg)
+
+        with open(f'{root}/6.txt', 'w') as f:
+            pos = male[2] + male[3]
+            neg = female[0] + female[2]
 
             pos = [f'{img} 1\n' for img in pos]
             neg = [f'{img} 0\n' for img in neg]
