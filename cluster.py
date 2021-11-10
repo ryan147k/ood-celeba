@@ -426,6 +426,152 @@ class AttributeAbout:
             f.writelines(neg)
 
     @classmethod
+    def celeba_conditional2txt(cls):
+        def f():
+            os.makedirs(data_dir, exist_ok=True)
+            with open(f'{data_dir}/train.txt', 'w') as f:
+                pos, neg = [], []
+                for i in range(4):
+                    pos_split = int(num_examples * p[i])
+                    neg_split = int(num_examples * (1 - p[i]))
+                    pos += male[i][:pos_split]
+                    neg += female[i][:neg_split]
+                pos = [f'{img} 1\n' for img in pos]
+                neg = [f'{img} 0\n' for img in neg]
+                f.writelines(pos)
+                f.writelines(neg)
+
+            with open(f'{data_dir}/test.txt', 'w') as f:
+                pos, neg = [], []
+                for i in range(4):
+                    pos_split = int(num_examples * p[i])
+                    neg_split = int(num_examples * (1 - p[i]))
+                    pos += male[i][pos_split:]
+                    neg += female[i][neg_split:]
+                pos = [f'{img} 1\n' for img in pos]
+                neg = [f'{img} 0\n' for img in neg]
+                f.writelines(pos)
+                f.writelines(neg)
+
+        root = './dataset/celeba_correlation'
+
+        male_id = 21
+
+        blackhair_id = 9
+        blondhair_id = 10
+        brownhair_id = 12
+        grayhair_id = 18
+
+        num_examples = 1200
+
+        # origin
+        male = (
+            cls._get_attrs_list((male_id, blackhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (1, 1))[:num_examples]
+        )
+
+        female = (
+            cls._get_attrs_list((male_id, blackhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (-1, 1))[:num_examples]
+        )
+
+        p = (0.5, 0.5, 0.5, 0.5)
+        data_dir = f'{root}/0'
+        f()
+
+        p = (0.6, 0.4, 0.6, 0.4)
+        data_dir = f'{root}/1'
+        f()
+
+        p = (0.7, 0.3, 0.7, 0.3)
+        data_dir = f'{root}/2'
+        f()
+
+        p = (0.8, 0.2, 0.8, 0.2)
+        data_dir = f'{root}/3'
+        f()
+
+        p = (0.9, 0.1, 0.9, 0.1)
+        data_dir = f'{root}/4'
+        f()
+
+        p = (1, 0, 1, 0)
+        data_dir = f'{root}/5'
+        f()
+
+    @classmethod
+    def celeba_marginal2txt(cls):
+        def f():
+            os.makedirs(data_dir, exist_ok=True)
+            with open(f'{data_dir}/train.txt', 'w') as f:
+                pos, neg = [], []
+                for i in range(4):
+                    split = int(num_examples * p[i])
+                    pos += male[i][:split]
+                    neg += female[i][:split]
+                pos = [f'{img} 1\n' for img in pos]
+                neg = [f'{img} 0\n' for img in neg]
+                f.writelines(pos)
+                f.writelines(neg)
+
+            with open(f'{data_dir}/test.txt', 'w') as f:
+                pos, neg = [], []
+                for i in range(4):
+                    split = int(num_examples * p[i])
+                    pos += male[i][split:]
+                    neg += female[i][split:]
+                pos = [f'{img} 1\n' for img in pos]
+                neg = [f'{img} 0\n' for img in neg]
+                f.writelines(pos)
+                f.writelines(neg)
+
+        root = './dataset/celeba_diversity'
+
+        male_id = 21
+
+        blackhair_id = 9
+        blondhair_id = 10
+        brownhair_id = 12
+        grayhair_id = 18
+
+        num_examples = 1200
+
+        # origin
+        male = (
+            cls._get_attrs_list((male_id, blackhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (1, 1))[:num_examples]
+        )
+
+        female = (
+            cls._get_attrs_list((male_id, blackhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, blondhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, brownhair_id), (-1, 1))[:num_examples],
+            cls._get_attrs_list((male_id, grayhair_id), (-1, 1))[:num_examples]
+        )
+
+        p = (0.5, 0.5, 0.5, 0.5)
+        data_dir = f'{root}/0'
+        f()
+
+        p = (0.9, 0.7, 0.3, 0.1)
+        data_dir = f'{root}/1'
+        f()
+
+        p = (1, 0.9, 0.1, 0)
+        data_dir = f'{root}/2'
+        f()
+
+        p = (1, 1, 0, 0)
+        data_dir = f'{root}/3'
+        f()
+
+    @classmethod
     def celeba_cluster2txt(cls):
         random.seed(2)
         # 聚类
@@ -440,211 +586,6 @@ class AttributeAbout:
                 img_list = [f'{_} {label}\n' for _ in img_list]
                 f.writelines(img_list)
 
-    @classmethod
-    def celeba_correlation2txt(cls):
-        root = './dataset/celeba_correlation'
-
-        attractive_id = 3
-        blackhair_id = 9
-        blondhair_id = 10
-
-        blond_pog = cls._get_attrs_list((attractive_id, blondhair_id), (1, 1))
-        blond_neg = cls._get_attrs_list((attractive_id, blondhair_id), (-1, 1))
-        black_pog = cls._get_attrs_list((attractive_id, blackhair_id), (1, 1))
-        black_neg = cls._get_attrs_list((attractive_id, blackhair_id), (-1, 1))
-
-        num_max = 9000
-
-        p = 0.2
-        with open(f'{root}/0.txt', 'w') as f:
-            num_blond_pog = int(num_max * (1 - p))
-            num_black_pog = int(num_max * p)
-            for _ in range(num_blond_pog):
-                img = blond_pog.pop()
-                f.write(f'{img} 1\n')
-            for _ in range(num_black_pog):
-                img = black_pog.pop()
-                f.write(f'{img} 1\n')
-
-            num_blond_neg = int(num_max * p)
-            num_black_neg = int(num_max * (1 - p))
-            for _ in range(num_blond_neg):
-                img = blond_neg.pop()
-                f.write(f'{img} 0\n')
-            for _ in range(num_black_neg):
-                img = black_neg.pop()
-                f.write(f'{img} 0\n')
-
-        p = 0.4
-        with open(f'{root}/1.txt', 'w') as f:
-            random.seed(2)
-
-            num_blond_pog = int(num_max * (1 - p))
-            num_black_pog = int(num_max * p)
-
-            blond_p = random.sample(blond_pog, num_blond_pog)
-            black_p = random.sample(black_pog, num_black_pog)
-
-            imgs = zip((blond_p + black_p), [1] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            num_blond_neg = int(num_max * p)
-            num_black_neg = int(num_max * (1 - p))
-
-            blond_n = random.sample(blond_neg, num_blond_neg)
-            black_n = random.sample(black_neg, num_black_neg)
-
-            imgs = zip((blond_n + black_n), [0] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-        p = 0.6
-        with open(f'{root}/2.txt', 'w') as f:
-            random.seed(3)
-
-            num_blond_pog = int(num_max * (1 - p))
-            num_black_pog = int(num_max * p)
-
-            blond_p = random.sample(blond_pog, num_blond_pog)
-            black_p = random.sample(black_pog, num_black_pog)
-
-            imgs = zip((blond_p + black_p), [1] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            num_blond_neg = int(num_max * p)
-            num_black_neg = int(num_max * (1 - p))
-
-            blond_n = random.sample(blond_neg, num_blond_neg)
-            black_n = random.sample(black_neg, num_black_neg)
-
-            imgs = zip((blond_n + black_n), [0] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-        p = 0.8
-        with open(f'{root}/3.txt', 'w') as f:
-            random.seed(4)
-
-            num_blond_pog = int(num_max * (1 - p))
-            num_black_pog = int(num_max * p)
-
-            blond_p = random.sample(blond_pog, num_blond_pog)
-            black_p = random.sample(black_pog, num_black_pog)
-
-            imgs = zip((blond_p + black_p), [1] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            num_blond_neg = int(num_max * p)
-            num_black_neg = int(num_max * (1 - p))
-
-            blond_n = random.sample(blond_neg, num_blond_neg)
-            black_n = random.sample(black_neg, num_black_neg)
-
-            imgs = zip((blond_n + black_n), [0] * num_max)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-    @classmethod
-    def celeba_diversity2txt(cls):
-        root = './dataset/celeba_diversity'
-
-        attractive_id = 3
-        blackhair_id = 9
-        blondhair_id = 10
-        brownhair_id = 12
-        grayhair_id = 18
-
-        black_pog = cls._get_attrs_list((attractive_id, blackhair_id), (1, 1))
-        black_neg = cls._get_attrs_list((attractive_id, blackhair_id), (-1, 1))
-
-        blond_pog = cls._get_attrs_list((attractive_id, blondhair_id), (1, 1))
-        blond_neg = cls._get_attrs_list((attractive_id, blondhair_id), (-1, 1))
-
-        brown_pog = cls._get_attrs_list((attractive_id, brownhair_id), (1, 1))
-        brown_neg = cls._get_attrs_list((attractive_id, brownhair_id), (-1, 1))
-
-        gray_pos = cls._get_attrs_list((attractive_id, grayhair_id), (1, 1))
-        gray_neg = cls._get_attrs_list((attractive_id, grayhair_id), (-1, 1))
-
-        num_test = 1000
-
-        with open(f'{root}/0.txt', 'w') as f:
-            for _ in range(10000):
-                img = black_pog.pop()
-                f.write(f'{img} 1\n')
-            for _ in range(10000):
-                img = black_neg.pop()
-                f.write(f'{img} 0\n')
-
-        i = 2
-        with open(f'{root}/1.txt', 'w') as f:
-            random.seed(i)
-
-            num = int(num_test / i)
-
-            black_p = random.sample(black_pog, num)
-            blond_p = random.sample(blond_pog, num)
-
-            imgs = zip((black_p + blond_p), [1] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            black_n = random.sample(black_neg, num)
-            blond_n = random.sample(blond_neg, num)
-
-            imgs = zip((black_n + blond_n), [0] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-        i = 3
-        with open(f'{root}/2.txt', 'w') as f:
-            random.seed(i)
-
-            num = int(num_test / i)
-
-            black_p = random.sample(black_pog, num)
-            blond_p = random.sample(blond_pog, num)
-            brown_p = random.sample(brown_pog, num + 1)
-
-            imgs = zip((black_p + blond_p + brown_p), [1] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            black_n = random.sample(black_neg, num)
-            blond_n = random.sample(blond_neg, num)
-            brown_n = random.sample(brown_neg, num + 1)
-
-            imgs = zip((black_n + blond_n + brown_n), [0] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-        i = 4
-        with open(f'{root}/3.txt', 'w') as f:
-            random.seed(i)
-
-            num = int(num_test / i)
-
-            black_p = random.sample(black_pog, num)
-            blond_p = random.sample(blond_pog, num)
-            brown_p = random.sample(brown_pog, num)
-            gray_p = random.sample(gray_pos, num)
-
-            imgs = zip((black_p + blond_p + brown_p + gray_p), [1] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
-            black_n = random.sample(black_neg, num)
-            blond_n = random.sample(blond_neg, num)
-            brown_n = random.sample(brown_neg, num)
-            gray_n = random.sample(gray_neg, num)
-
-            imgs = zip((black_n + blond_n + brown_n + gray_n), [0] * num_test)
-            imgs = [f'{img} {label}\n' for img, label in imgs]
-            f.writelines(imgs)
-
 
 def plot(img, root='../dataset/CelebA/Img/img_align_celeba'):
     img = Image.open(f'{root}/{img}')
@@ -653,25 +594,5 @@ def plot(img, root='../dataset/CelebA/Img/img_align_celeba'):
     plt.show()
 
 
-def count():
-    res = pickle.load(open('./count/res_test.pkl', 'rb'))
-    ood0, ood1, ood2 = res[0], res[1], res[2]
-
-    for i in ood2:
-        print(str(i).replace(',', ';'))
-
-    # for i, acc_list in enumerate(res):
-    #     markers = ['-s', '-o', '-*', '-^', '-D', '-p']
-    #     models = ['ResNet18', 'AlexNet', 'Vgg11', 'DensNet121', 'SqueezeNet', 'ResNext50']
-    #     titles = ['Distribution OOD', 'Correlation OOD', 'Diversity OOD']
-    #     for j, acc in enumerate(acc_list):
-    #         plt.plot(range(len(acc)), acc, markers[j], ms=6, label=models[j], lw=0.5)
-    #     plt.xlabel('OOD Data')
-    #     plt.ylabel('Accuracy')
-    #     plt.title(titles[i])
-    #     plt.legend()
-    #     plt.show()
-
-
 if __name__ == '__main__':
-    AttributeAbout.celeba_shift2txt()
+    AttributeAbout.celeba_marginal2txt()
